@@ -1,0 +1,25 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output = "./gameDataClient"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("GAME_DATA_DB_URL")
+}
+
+model Items {
+  itemCode        Int      @id @default(autoincrement()) @map("item_code")
+  itemName        String   @unique @map("item_name")
+  itemStatHealth  Int?     @map("item_stat_health")
+  itemStatPower   Int?     @map("item_stat_power")
+  itemPrice       Int      @map("item_price")
+
+  @@map("items")
+}

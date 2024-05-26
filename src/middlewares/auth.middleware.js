@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
-import { prisma } from '../utils/prisma/index.js';
+import { usersPrisma } from '../utils/prisma/index.js';
 
 dotenv.config();
 
@@ -11,13 +11,12 @@ export default async function (req, res, next) {
 
     const [tokenType, token] = authorization.split(' ');
 
-    if (tokenType !== 'Bearer')
-      throw new Error('토큰 타입이 일치하지 않습니다.');
+    if (tokenType !== 'Bearer') throw new Error('토큰 타입이 일치하지 않습니다.');
 
     const decodedToken = jwt.verify(token, process.env.JWT_SECRET_KEY);
     const userId = decodedToken.userId;
 
-    const user = await prisma.users.findFirst({
+    const user = await usersPrisma.users.findFirst({
       where: { userId: +userId },
     });
     if (!user) {
@@ -39,9 +38,7 @@ export default async function (req, res, next) {
       case 'JsonWebTokenError':
         return res.status(401).json({ message: '토큰이 조작되었습니다.' });
       default:
-        return res
-          .status(401)
-          .json({ message: error.message ?? '비정상적인 요청입니다.' });
+        return res.status(401).json({ message: error.message ?? '비정상적인 요청입니다.' });
     }
   }
 }

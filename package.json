@@ -4,12 +4,17 @@
   "main": "index.js",
   "license": "MIT",
   "type": "module",
+  "scripts": {
+    "pushDB": "npx prisma db push --schema prisma/gameData.schema.prisma",
+    "postpushDB": "npx prisma db push --schema prisma/users.schema.prisma"
+  },
   "dependencies": {
     "@prisma/client": "^5.14.0",
     "bcrypt": "^5.1.1",
     "cookie-parser": "^1.4.6",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "joi": "^17.13.1",
     "jsonwebtoken": "^9.0.2",
     "prisma": "^5.14.0"
   },

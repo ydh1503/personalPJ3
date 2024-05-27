@@ -15,11 +15,22 @@ datasource db {
 }
 
 model Items {
-  itemCode        Int      @id @default(autoincrement()) @map("item_code")
-  itemName        String   @unique @map("item_name")
-  itemStatHealth  Int?     @map("item_stat_health")
-  itemStatPower   Int?     @map("item_stat_power")
-  itemPrice       Int      @map("item_price")
+  itemCode        Int         @id @default(autoincrement()) @map("item_code")
+  itemName        String      @unique @map("item_name")
+  itemPrice       Int         @map("item_price")
+
+  ItemStat        ItemStats?
 
   @@map("items")
+}
+
+model ItemStats {
+  itemStatId    Int   @id @default(autoincrement()) @map("item_stat_id")
+  ItemCode      Int   @unique @map("item_code")
+  health        Int?  @map("health")
+  power         Int?  @map("power")
+
+  Item          Items @relation(fields:[ItemCode], references:[itemCode], onUpdate:Cascade ,onDelete:Cascade)
+
+  @@map("item_stats")
 }

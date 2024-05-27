@@ -1,6 +1,7 @@
 import express from 'express';
 import Joi from 'joi';
 import { gameDataPrisma } from '../utils/prisma/index.js';
+import { Prisma } from '../../prisma/gameDataClient/index.js';
 
 const router = express.Router();
 
@@ -8,15 +9,17 @@ const router = express.Router();
 let itemsSchema = Joi.object({
   itemCode: Joi.number().integer(),
   itemName: Joi.string().required(),
-  itemStatHealth: Joi.number().integer(),
-  itemStatPower: Joi.number().integer(),
+  itemStat: Joi.object({
+    health: Joi.number().integer(),
+    power: Joi.number().integer(),
+  }),
   itemPrice: Joi.number().integer().required(),
 });
 
 router.post('/items', async (req, res, next) => {
   try {
     const validation = await itemsSchema.validateAsync(req.body);
-    const { itemCode, itemName, itemStatHealth, itemStatPower, itemPrice } = validation;
+    const { itemCode, itemName, itemStat, itemPrice } = validation;
 
     if (
       await gameDataPrisma.items.findFirst({
@@ -28,9 +31,26 @@ router.post('/items', async (req, res, next) => {
       return res.status(409).json({ errorMessage: '이미 존재하는 Item 입니다.' });
     }
 
-    const item = await gameDataPrisma.items.create({
-      data: { itemCode, itemName, itemStatHealth, itemStatPower, itemPrice },
-    });
+    const [item, stat] = await gameDataPrisma.$transaction(
+      async (tx) => {
+        const item = await tx.items.create({
+          data: { itemCode, itemName, itemPrice },
+        });
+
+        const stat = await tx.itemStats.create({
+          data: {
+            ItemCode: item.itemCode,
+            ...itemStat,
+          },
+        });
+
+        return [item, stat];
+      },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+      }
+    );
+    item.ItemStat = itemStat;
 
     return res.status(201).json({ message: 'Item이 생성되었습니다.', data: item });
   } catch (err) {
@@ -48,33 +68,59 @@ router.patch('/items/:itemCode', async (req, res, next) => {
 
     validation = await Joi.object({
       itemName: Joi.string(),
-      itemStatHealth: Joi.number().integer(),
-      itemStatPower: Joi.number().integer(),
+      itemStat: Joi.object({
+        health: Joi.number().integer(),
+        power: Joi.number().integer(),
+      }),
     }).validateAsync(req.body);
-    const updatedData = validation;
+    const { itemName, itemStat } = validation;
 
     const item = await gameDataPrisma.items.findFirst({
       where: { itemCode },
+      select: {
+        itemCode: true,
+        itemName: true,
+        ItemStat: {
+          select: {
+            health: true,
+            power: true,
+          },
+        },
+      },
     });
     if (!item) {
       return res.status(404).json({ errorMessage: 'Item 조회에 실패했습니다.' });
     }
-    await gameDataPrisma.items.update({
-      data: {
-        ...updatedData,
-      },
-      where: { itemCode },
+
+    const newItem = await gameDataPrisma.$transaction(async (tx) => {
+      await tx.itemStats.update({
+        data: {
+          ...itemStat,
+        },
+        where: { ItemCode: itemCode },
+      });
+
+      const newItem = await tx.items.update({
+        data: {
+          itemName,
+        },
+        where: { itemCode },
+        select: {
+          itemCode: true,
+          itemName: true,
+          ItemStat: {
+            select: {
+              health: true,
+              power: true,
+            },
+          },
+        },
+      });
+
+      return newItem;
     });
 
-    const changedData = {};
-    for (let key in updatedData) {
-      if (item[key] !== updatedData[key]) {
-        changedData[key] = `${item[key]} => ${updatedData[key]}`;
-        item[key] = updatedData[key];
-      }
-    }
-
-    return res.status(200).json({ message: 'Item 변경이 완료되었습니다.', changedData, item });
+    return res.status(200).json({ message: 'Item 변경이 완료되었습니다.', old: item, new: newItem });
   } catch (err) {
     next(err);
   }
@@ -108,6 +154,17 @@ router.get('/items/:itemCode', async (req, res, next) => {
 
     const item = await gameDataPrisma.items.findFirst({
       where: { itemCode },
+      select: {
+        itemCode: true,
+        itemName: true,
+        ItemStat: {
+          select: {
+            health: true,
+            power: true,
+          },
+        },
+        itemPrice: true,
+      },
     });
     if (!item) {
       return res.status(404).json({ errorMessage: 'Item 조회에 실패했습니다.' });

@@ -1,8 +1,8 @@
 import express from 'express';
 import Joi from 'joi';
 import authMiddleware from '../middlewares/auth.middleware.js';
-import { usersPrisma } from '../utils/prisma/index.js';
-import { gameDataPrisma } from '../utils/prisma/index.js';
+import { usersPrisma, gameDataPrisma } from '../utils/prisma/index.js';
+import { Prisma } from '../../prisma/usersClient/index.js';
 
 const router = express.Router();
 
@@ -49,32 +49,37 @@ router.post('/users/auth/characters/:characterId/trading', authMiddleware, async
       });
     }
 
-    const updatedcharacter = await usersPrisma.$transaction(async (tx) => {
-      const existingItem = character.Inventory.find((item) => item.itemCode === itemCode);
-      if (existingItem) {
-        await tx.inventories.update({
-          data: { itemCount: existingItem.itemCount + itemCount },
-          where: { inventoryId: existingItem.inventoryId },
-        });
-      } else {
-        await tx.inventories.create({
+    const updatedcharacter = await usersPrisma.$transaction(
+      async (tx) => {
+        const existingItem = character.Inventory.find((item) => item.itemCode === itemCode);
+        if (existingItem) {
+          await tx.inventories.update({
+            data: { itemCount: existingItem.itemCount + itemCount },
+            where: { inventoryId: existingItem.inventoryId },
+          });
+        } else {
+          await tx.inventories.create({
+            data: {
+              CharacterId: characterId,
+              itemCode,
+              itemCount,
+            },
+          });
+        }
+
+        const updatedcharacter = await tx.characters.update({
           data: {
-            CharacterId: characterId,
-            itemCode,
-            itemCount,
+            characterMoney: balance,
           },
+          where: { characterId },
         });
+
+        return updatedcharacter;
+      },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
       }
-
-      const updatedcharacter = await tx.characters.update({
-        data: {
-          characterMoney: balance,
-        },
-        where: { characterId },
-      });
-
-      return updatedcharacter;
-    });
+    );
 
     return res.status(201).json({
       message: `${item.itemName} * ${itemCount} 구매를 완료했습니다.`,
@@ -125,27 +130,32 @@ router.delete('/users/auth/characters/:characterId/trading', authMiddleware, asy
     const totalPrice = parseInt(item.itemPrice * itemCount * 0.6);
     const balance = character.characterMoney + totalPrice;
 
-    const updatedcharacter = await usersPrisma.$transaction(async (tx) => {
-      if (existingItem.itemCount === itemCount) {
-        await tx.inventories.delete({
-          where: { inventoryId: existingItem.inventoryId },
+    const updatedcharacter = await usersPrisma.$transaction(
+      async (tx) => {
+        if (existingItem.itemCount === itemCount) {
+          await tx.inventories.delete({
+            where: { inventoryId: existingItem.inventoryId },
+          });
+        } else {
+          await tx.inventories.update({
+            data: { itemCount: existingItem.itemCount - itemCount },
+            where: { inventoryId: existingItem.inventoryId },
+          });
+        }
+
+        const updatedcharacter = await tx.characters.update({
+          data: {
+            characterMoney: balance,
+          },
+          where: { characterId },
         });
-      } else {
-        await tx.inventories.update({
-          data: { itemCount: existingItem.itemCount - itemCount },
-          where: { inventoryId: existingItem.inventoryId },
-        });
+
+        return updatedcharacter;
+      },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
       }
-
-      const updatedcharacter = await tx.characters.update({
-        data: {
-          characterMoney: balance,
-        },
-        where: { characterId },
-      });
-
-      return updatedcharacter;
-    });
+    );
 
     return res.status(201).json({
       message: `${item.itemName} * ${itemCount} 판매를 완료했습니다.`,

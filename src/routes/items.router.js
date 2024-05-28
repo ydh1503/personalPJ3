@@ -1,7 +1,8 @@
 import express from 'express';
 import Joi from 'joi';
-import { gameDataPrisma } from '../utils/prisma/index.js';
-import { Prisma } from '../../prisma/gameDataClient/index.js';
+import { gameDataPrisma, usersPrisma } from '../utils/prisma/index.js';
+import { Prisma as GameDataPrisma } from '../../prisma/gameDataClient/index.js';
+import { Prisma as UsersPrisma } from '../../prisma/usersClient/index.js';
 
 const router = express.Router();
 
@@ -47,7 +48,7 @@ router.post('/items', async (req, res, next) => {
         return [item, stat];
       },
       {
-        isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+        isolationLevel: GameDataPrisma.TransactionIsolationLevel.ReadCommitted,
       }
     );
     item.ItemStat = itemStat;
@@ -75,6 +76,10 @@ router.patch('/items/:itemCode', async (req, res, next) => {
     }).validateAsync(req.body);
     const { itemName, itemStat } = validation;
 
+    if (await gameDataPrisma.items.findFirst({ where: { itemName, NOT: { itemCode } } })) {
+      return res.status(409).json({ errorMessage: '이미 존재하는 Item 명입니다.' });
+    }
+
     const item = await gameDataPrisma.items.findFirst({
       where: { itemCode },
       select: {
@@ -92,33 +97,61 @@ router.patch('/items/:itemCode', async (req, res, next) => {
       return res.status(404).json({ errorMessage: 'Item 조회에 실패했습니다.' });
     }
 
-    const newItem = await gameDataPrisma.$transaction(async (tx) => {
-      await tx.itemStats.update({
-        data: {
-          ...itemStat,
-        },
-        where: { ItemCode: itemCode },
-      });
+    const newItem = await gameDataPrisma.$transaction(
+      async (tx) => {
+        await tx.itemStats.update({
+          data: {
+            ...itemStat,
+          },
+          where: { ItemCode: itemCode },
+        });
 
-      const newItem = await tx.items.update({
-        data: {
-          itemName,
-        },
-        where: { itemCode },
-        select: {
-          itemCode: true,
-          itemName: true,
-          ItemStat: {
-            select: {
-              health: true,
-              power: true,
+        const newItem = await tx.items.update({
+          data: {
+            itemName,
+          },
+          where: { itemCode },
+          select: {
+            itemCode: true,
+            itemName: true,
+            ItemStat: {
+              select: {
+                health: true,
+                power: true,
+              },
             },
           },
-        },
-      });
+        });
 
-      return newItem;
-    });
+        // 변경된 스탯을 해당 아이템을 장착한 캐릭터 스탯에도 반영
+        await usersPrisma.$transaction(
+          async (tx) => {
+            const characters = await tx.equipments.findMany({
+              where: { itemCode },
+              select: { Character: true },
+            });
+
+            for (const { Character } of characters) {
+              await tx.characters.update({
+                where: { characterId: Character.characterId },
+                data: {
+                  characterStatHealth: Character.characterStatHealth - item.ItemStat.health + newItem.ItemStat.health,
+                  characterStatPower: Character.characterStatPower - item.ItemStat.power + newItem.ItemStat.power,
+                },
+              });
+            }
+          },
+          {
+            isolationLevel: UsersPrisma.TransactionIsolationLevel.ReadCommitted,
+          }
+        );
+
+        return newItem;
+      },
+      {
+        isolationLevel: GameDataPrisma.TransactionIsolationLevel.ReadCommitted,
+      }
+    );
 
     return res.status(200).json({ message: 'Item 변경이 완료되었습니다.', old: item, new: newItem });
   } catch (err) {

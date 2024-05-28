@@ -1,8 +1,8 @@
 import express from 'express';
 import Joi from 'joi';
 import authMiddleware from '../middlewares/auth.middleware.js';
-import { usersPrisma } from '../utils/prisma/index.js';
-import { gameDataPrisma } from '../utils/prisma/index.js';
+import { usersPrisma, gameDataPrisma } from '../utils/prisma/index.js';
+import { Prisma } from '../../prisma/usersClient/index.js';
 
 const router = express.Router();
 
@@ -89,41 +89,46 @@ router.post('/users/auth/characters/:characterId/equipments', authMiddleware, as
     }
 
     // 아이템 장착
-    const updatedcharacter = await usersPrisma.$transaction(async (tx) => {
-      // 장착 테이블에 추가
-      await tx.equipments.create({
-        data: {
-          CharacterId: characterId,
-          itemCode,
-        },
-      });
-
-      // 인벤토리 테이블에서 제거
-      if (existingItem.itemCount === 1) {
-        await tx.inventories.delete({
-          where: { inventoryId: existingItem.inventoryId },
-        });
-      } else {
-        await tx.inventories.update({
-          where: { inventoryId: existingItem.inventoryId },
+    const updatedcharacter = await usersPrisma.$transaction(
+      async (tx) => {
+        // 장착 테이블에 추가
+        await tx.equipments.create({
           data: {
-            itemCount: existingItem.itemCount - 1,
+            CharacterId: characterId,
+            itemCode,
           },
         });
+
+        // 인벤토리 테이블에서 제거
+        if (existingItem.itemCount === 1) {
+          await tx.inventories.delete({
+            where: { inventoryId: existingItem.inventoryId },
+          });
+        } else {
+          await tx.inventories.update({
+            where: { inventoryId: existingItem.inventoryId },
+            data: {
+              itemCount: existingItem.itemCount - 1,
+            },
+          });
+        }
+
+        // 캐릭터 스텟 변경
+        const updatedcharacter = await tx.characters.update({
+          where: { characterId },
+          data: {
+            characterStatHealth: character.characterStatHealth + item.ItemStat.health,
+            characterStatPower: character.characterStatPower + item.ItemStat.power,
+          },
+          include: { Equipment: true },
+        });
+
+        return updatedcharacter;
+      },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
       }
-
-      // 캐릭터 스텟 변경
-      const updatedcharacter = await tx.characters.update({
-        where: { characterId },
-        data: {
-          characterStatHealth: character.characterStatHealth + item.ItemStat.health,
-          characterStatPower: character.characterStatPower + item.ItemStat.power,
-        },
-        include: { Equipment: true },
-      });
-
-      return updatedcharacter;
-    });
+    );
 
     return res.status(200).json({
       data: {
@@ -198,43 +203,48 @@ router.delete('/users/auth/characters/:characterId/equipments', authMiddleware, 
     }
 
     // 아이템 탈착
-    const updatedcharacter = await usersPrisma.$transaction(async (tx) => {
-      // 장착 테이블에서 제거
-      await tx.equipments.delete({
-        where: { equipmentId: equipingItem.equipmentId },
-      });
+    const updatedcharacter = await usersPrisma.$transaction(
+      async (tx) => {
+        // 장착 테이블에서 제거
+        await tx.equipments.delete({
+          where: { equipmentId: equipingItem.equipmentId },
+        });
 
-      // 인벤토리 테이블에 추가
-      const existingItem = character.Inventory.find((item) => item.itemCode === itemCode);
-      if (!existingItem) {
-        await tx.inventories.create({
+        // 인벤토리 테이블에 추가
+        const existingItem = character.Inventory.find((item) => item.itemCode === itemCode);
+        if (!existingItem) {
+          await tx.inventories.create({
+            data: {
+              CharacterId: characterId,
+              itemCode,
+              itemCount: 1,
+            },
+          });
+        } else {
+          await tx.inventories.update({
+            where: { inventoryId: existingItem.inventoryId },
+            data: {
+              itemCount: existingItem.itemCount + 1,
+            },
+          });
+        }
+
+        // 캐릭터 스텟 변경
+        const updatedcharacter = await tx.characters.update({
+          where: { characterId },
           data: {
-            CharacterId: characterId,
-            itemCode,
-            itemCount: 1,
+            characterStatHealth: character.characterStatHealth - item.ItemStat.health,
+            characterStatPower: character.characterStatPower - item.ItemStat.power,
           },
+          include: { Equipment: true },
         });
-      } else {
-        await tx.inventories.update({
-          where: { inventoryId: existingItem.inventoryId },
-          data: {
-            itemCount: existingItem.itemCount + 1,
-          },
-        });
+
+        return updatedcharacter;
+      },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
       }
-
-      // 캐릭터 스텟 변경
-      const updatedcharacter = await tx.characters.update({
-        where: { characterId },
-        data: {
-          characterStatHealth: character.characterStatHealth - item.ItemStat.health,
-          characterStatPower: character.characterStatPower - item.ItemStat.power,
-        },
-        include: { Equipment: true },
-      });
-
-      return updatedcharacter;
-    });
+    );
 
     return res.status(200).json({
       data: {

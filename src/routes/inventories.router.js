@@ -1,8 +1,7 @@
 import express from 'express';
 import Joi from 'joi';
 import authMiddleware from '../middlewares/auth.middleware.js';
-import { usersPrisma } from '../utils/prisma/index.js';
-import { gameDataPrisma } from '../utils/prisma/index.js';
+import { usersPrisma, gameDataPrisma } from '../utils/prisma/index.js';
 
 const router = express.Router();
 

@@ -76,7 +76,7 @@ router.patch('/items/:itemCode', async (req, res, next) => {
     }).validateAsync(req.body);
     const { itemName, itemStat } = validation;
 
-    if (await gameDataPrisma.items.findFirst({ where: { itemName, NOT: { itemCode } } })) {
+    if (itemName !== undefined && (await gameDataPrisma.items.findFirst({ where: { itemName, NOT: { itemCode } } }))) {
       return res.status(409).json({ errorMessage: '이미 존재하는 Item 명입니다.' });
     }
 
@@ -124,27 +124,29 @@ router.patch('/items/:itemCode', async (req, res, next) => {
         });
 
         // 변경된 스탯을 해당 아이템을 장착한 캐릭터 스탯에도 반영
-        await usersPrisma.$transaction(
-          async (tx) => {
-            const characters = await tx.equipments.findMany({
-              where: { itemCode },
-              select: { Character: true },
-            });
-
-            for (const { Character } of characters) {
-              await tx.characters.update({
-                where: { characterId: Character.characterId },
-                data: {
-                  characterStatHealth: Character.characterStatHealth - item.ItemStat.health + newItem.ItemStat.health,
-                  characterStatPower: Character.characterStatPower - item.ItemStat.power + newItem.ItemStat.power,
-                },
+        if (itemStat) {
+          await usersPrisma.$transaction(
+            async (tx) => {
+              const characters = await tx.equipments.findMany({
+                where: { itemCode },
+                select: { Character: true },
               });
+
+              for (const { Character } of characters) {
+                await tx.characters.update({
+                  where: { characterId: Character.characterId },
+                  data: {
+                    characterStatHealth: Character.characterStatHealth - item.ItemStat.health + newItem.ItemStat.health,
+                    characterStatPower: Character.characterStatPower - item.ItemStat.power + newItem.ItemStat.power,
+                  },
+                });
+              }
+            },
+            {
+              isolationLevel: UsersPrisma.TransactionIsolationLevel.ReadCommitted,
             }
-          },
-          {
-            isolationLevel: UsersPrisma.TransactionIsolationLevel.ReadCommitted,
-          }
-        );
+          );
+        }
 
         return newItem;
       },

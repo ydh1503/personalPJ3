@@ -1,11 +1,6 @@
-<<<<<<< HEAD
-## 배포 링크
-
-- http://ydh1503-sparta.store:3000/api
-=======
 ## 배포 URL
 - http://ydh1503-sparta.store:3000
->>>>>>> aa9e9580b9d9f5be179b5b9592d7a6575425fe14
+
 
 ## API 명세서
 - [API 명세서 링크](https://heavenly-dosa-a98.notion.site/API-13adb8baf7714017be1cf2bce5c2a273?pvs=4)

@@ -81,11 +81,11 @@ router.post('/users/auth/characters/:characterId/equipments', authMiddleware, as
 
     const existingItem = character.Inventory.find((item) => item.itemCode === itemCode);
     if (!existingItem) {
-      return res.status(401).json({ errorMessage: '인벤토리 내에 해당 아이템이 존재하지 않습니다.' });
+      return res.status(404).json({ errorMessage: '인벤토리 내에 해당 아이템이 존재하지 않습니다.' });
     }
 
     if (character.Equipment.find((item) => item.itemCode === itemCode)) {
-      return res.status(401).json({ errorMessage: '이미 장착하고 있는 아이템입니다.' });
+      return res.status(400).json({ errorMessage: '이미 장착하고 있는 아이템입니다.' });
     }
 
     // 아이템 장착
@@ -199,7 +199,7 @@ router.delete('/users/auth/characters/:characterId/equipments', authMiddleware, 
 
     const equipingItem = character.Equipment.find((item) => item.itemCode === itemCode);
     if (!equipingItem) {
-      return res.status(401).json({ errorMessage: '장착 중인 아이템이 아닙니다.' });
+      return res.status(400).json({ errorMessage: '장착 중인 아이템이 아닙니다.' });
     }
 
     // 아이템 탈착

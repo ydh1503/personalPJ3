@@ -25,7 +25,7 @@ router.post('/sign-up', async (req, res, next) => {
     const validation = await signUpSchema.validateAsync(req.body);
     const { id, password, confirmPassword, name } = validation;
     if (password !== confirmPassword) {
-      return res.status(401).json({ message: '비밀번호 확인이 일치하지 않습니다.' });
+      return res.status(400).json({ message: '비밀번호 확인이 일치하지 않습니다.' });
     }
 
     const isExistUser = await usersPrisma.users.findFirst({

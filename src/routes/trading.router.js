@@ -44,7 +44,7 @@ router.post('/users/auth/characters/:characterId/trading', authMiddleware, async
     const balance = character.characterMoney - totalPrice;
 
     if (balance < 0) {
-      return res.status(401).json({
+      return res.status(400).json({
         errorMessage: `보유한 금액 ${character.characterMoney} 이 구매하려는 Item의 가격 ${totalPrice} 보다 적습니다.`,
       });
     }
@@ -132,7 +132,7 @@ router.delete('/users/auth/characters/:characterId/trading', authMiddleware, asy
       if (!existingItem) {
         return res.status(404).json({ errorMessage: '인벤토리 내 Item 조회에 실패했습니다.' });
       } else if (existingItem.itemCount < itemCount) {
-        return res.status(401).json({
+        return res.status(400).json({
           errorMessage: `판매하려는 아이템 '${item.itemName}' 의 개수 ${itemCount} 가 보유하고 있는 아이템의 개수 ${existingItem.itemCount} 보다 많습니다.`,
         });
       }

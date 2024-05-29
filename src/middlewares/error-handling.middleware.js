@@ -4,7 +4,7 @@ export default function (err, req, res, next) {
 
   switch (err.name) {
     case 'ValidationError':
-      return res.status(401).json({
+      return res.status(400).json({
         errorMessage: `'${err.details[0].context.key}' 유효성 검사에 실패했습니다. (${err.details[0].context.key} : ${err.details[0].context.value})`,
       });
     default:

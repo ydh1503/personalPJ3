@@ -110,34 +110,25 @@ router.get('/users/auth/characters/:characterId', authMiddleware, async (req, re
     const validation = await characterIdSchema.validateAsync(req.params);
     const { characterId } = validation;
 
-    let character = await usersPrisma.characters.findFirst({
+    const character = await usersPrisma.characters.findFirst({
       where: { characterId },
     });
 
     if (!character) {
       return res.status(404).json({ errorMessage: '캐릭터 조회에 실패했습니다.' });
-    } else if (character.UserId === +userId) {
-      character = await usersPrisma.characters.findFirst({
-        where: { characterId },
-        select: {
-          characterName: true,
-          characterStatHealth: true,
-          characterStatPower: true,
-          characterMoney: true,
-        },
-      });
-    } else {
-      character = await usersPrisma.characters.findFirst({
-        where: { characterId },
-        select: {
-          characterName: true,
-          characterStatHealth: true,
-          characterStatPower: true,
-        },
-      });
     }
 
-    return res.status(200).json({ message: '캐릭터를 조회 했습니다.', data: character });
+    const data = {
+      characterName: character.characterName,
+      characterStatHealth: character.characterStatHealth,
+      characterStatPower: character.characterStatPower,
+    };
+
+    if (character.UserId === +userId) {
+      data.characterMoney = character.characterMoney;
+    }
+
+    return res.status(200).json({ message: '캐릭터를 조회 했습니다.', data: data });
   } catch (err) {
     next(err);
   }

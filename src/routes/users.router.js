@@ -101,6 +101,7 @@ router.get('/users', authMiddleware, async (req, res, next) => {
         Characters: {
           select: {
             characterName: true,
+            characterId: true,
           },
         },
       },

@@ -106,11 +106,11 @@ router.post('/users/auth/characters/:characterId/equipments', authMiddleware, au
         }
 
         // 캐릭터 스텟 변경
-        const updatedCharacterStat = await tx.characterStats.update({
-          where: { characterId },
+        await tx.characterStats.update({
+          where: { CharacterId: characterId },
           data: {
-            health: { increment: item.ItemStat.health },
-            power: { increment: item.ItemStat.power },
+            health: { increment: +item.ItemStat.health },
+            power: { increment: +item.ItemStat.power },
           },
         });
       },
@@ -224,10 +224,10 @@ router.delete(
 
           // 캐릭터 스텟 변경
           await tx.characterStats.update({
-            where: { characterId },
+            where: { CharacterId: characterId },
             data: {
-              health: { decrement: item.ItemStat.health },
-              power: { decrement: item.ItemStat.power },
+              health: { decrement: +item.ItemStat.health },
+              power: { decrement: +item.ItemStat.power },
             },
           });
         },
@@ -244,8 +244,8 @@ router.delete(
       return res.status(200).json({
         data: {
           characterName: character.characterName,
-          characterStatHealth: character.characterStatHealth,
-          characterStatPower: character.characterStatPower,
+          characterStatHealth: character.CharacterStat.health,
+          characterStatPower: character.CharacterStat.power,
           Equipment: await Promise.all(
             character.Equipment.map(
               async (item) =>

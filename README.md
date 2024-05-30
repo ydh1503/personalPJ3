@@ -1,3 +1,8 @@
+## 코드실행 준비
+
+- yarn run pushDB
+        각 schema.prisma에 따른 client 생성 및 db 연동
+
 ## 배포 URL
 
 - http://ydh1503-sparta.store:3000

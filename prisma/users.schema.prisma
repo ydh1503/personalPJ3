@@ -28,18 +28,28 @@ model Users {
 }
 
 model Characters {
-  characterId         String @id @default(uuid()) @map("character_id")
-  UserId              Int    @map("user_id")
-  characterName       String @unique @map("character_name")
-  characterStatHealth Int    @map("character_stat_health")
-  characterStatPower  Int    @map("character_stat_power")
-  characterMoney      Int    @map("character_money")
+  characterId    String @id @default(uuid()) @map("character_id")
+  UserId         Int    @map("user_id")
+  characterName  String @unique @map("character_name")
+  characterMoney Int    @default(10000) @map("character_money")
 
-  User      Users         @relation(fields: [UserId], references: [userId], onDelete: Cascade)
-  Inventory Inventories[]
-  Equipment Equipments[]
+  User          Users           @relation(fields: [UserId], references: [userId], onDelete: Cascade)
+  CharacterStat CharacterStats?
+  Inventory     Inventories[]
+  Equipment     Equipments[]
 
   @@map("characters")
+}
+
+model CharacterStats {
+  characterStatId Int    @id @default(autoincrement()) @map("character_stat_id")
+  CharacterId     String @unique @map("character_id")
+  health          Int    @default(500) @map("health")
+  power           Int    @default(100) @map("power")
+
+  Character Characters @relation(fields: [CharacterId], references: [characterId], onDelete: Cascade)
+
+  @@map("character_stats")
 }
 
 model Inventories {

@@ -129,15 +129,14 @@ router.patch('/items/:itemCode', async (req, res, next) => {
             async (tx) => {
               const characters = await tx.equipments.findMany({
                 where: { itemCode },
-                select: { Character: true },
               });
 
-              for (const { Character } of characters) {
-                await tx.characters.update({
-                  where: { characterId: Character.characterId },
+              for (const { CharacterId } of characters) {
+                await tx.characterStats.update({
+                  where: { CharacterId },
                   data: {
-                    characterStatHealth: Character.characterStatHealth - item.ItemStat.health + newItem.ItemStat.health,
-                    characterStatPower: Character.characterStatPower - item.ItemStat.power + newItem.ItemStat.power,
+                    health: { increment: newItem.ItemStat.health - item.ItemStat.health },
+                    power: { increment: newItem.ItemStat.power - item.ItemStat.power },
                   },
                 });
               }

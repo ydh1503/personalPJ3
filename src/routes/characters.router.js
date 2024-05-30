@@ -16,9 +16,7 @@ router.post('/users/auth/characters', authMiddleware, async (req, res, next) => 
     const { characterName } = validation;
     if (
       await usersPrisma.characters.findFirst({
-        where: {
-          characterName,
-        },
+        where: { characterName },
       })
     ) {
       return res.status(409).json({ errorMessage: '이미 존재하는 캐릭터 명입니다.' });
@@ -28,17 +26,27 @@ router.post('/users/auth/characters', authMiddleware, async (req, res, next) => 
     const POWER = 100;
     const MONEY = 10000;
 
-    const character = await usersPrisma.characters.create({
-      data: {
-        UserId: +userId,
-        characterName,
-        characterStatHealth: HEALTH,
-        characterStatPower: POWER,
-        characterMoney: MONEY,
-      },
-      select: {
-        characterId: true,
-      },
+    const character = await usersPrisma.$transaction(async (tx) => {
+      const character = await tx.characters.create({
+        data: {
+          UserId: +userId,
+          characterName,
+          characterMoney: MONEY,
+        },
+        select: {
+          characterId: true,
+        },
+      });
+
+      await tx.characterStats.create({
+        data: {
+          CharacterId: character.characterId,
+          health: HEALTH,
+          power: POWER,
+        },
+      });
+
+      return character;
     });
 
     return res.status(201).json({ message: '캐릭터가 생성되었습니다.', data: character });
@@ -88,8 +96,12 @@ router.get('/users/characters/:characterId', async (req, res, next) => {
       where: { characterId },
       select: {
         characterName: true,
-        characterStatHealth: true,
-        characterStatPower: true,
+        CharacterStat: {
+          select: {
+            health: true,
+            power: true,
+          },
+        },
       },
     });
 
@@ -112,6 +124,7 @@ router.get('/users/auth/characters/:characterId', authMiddleware, async (req, re
 
     const character = await usersPrisma.characters.findFirst({
       where: { characterId },
+      include: { CharacterStat },
     });
 
     if (!character) {
@@ -120,8 +133,8 @@ router.get('/users/auth/characters/:characterId', authMiddleware, async (req, re
 
     const data = {
       characterName: character.characterName,
-      characterStatHealth: character.characterStatHealth,
-      characterStatPower: character.characterStatPower,
+      health: character.CharacterStat.health,
+      power: character.CharacterStat.power,
     };
 
     if (character.UserId === +userId) {

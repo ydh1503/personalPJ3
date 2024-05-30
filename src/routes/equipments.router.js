@@ -65,8 +65,9 @@ router.post('/users/auth/characters/:characterId/equipments', authMiddleware, au
     const character = await usersPrisma.characters.findFirst({
       where: { characterId },
       include: {
+        CharacterStat: true,
         Inventory: true,
-        Equipment: true,
+        Equipment: { orderBy: { itemCode: 'asc' } },
       },
     });
 
@@ -80,7 +81,7 @@ router.post('/users/auth/characters/:characterId/equipments', authMiddleware, au
     }
 
     // 아이템 장착
-    const updatedcharacter = await usersPrisma.$transaction(
+    await usersPrisma.$transaction(
       async (tx) => {
         // 장착 테이블에 추가
         await tx.equipments.create({
@@ -105,27 +106,29 @@ router.post('/users/auth/characters/:characterId/equipments', authMiddleware, au
         }
 
         // 캐릭터 스텟 변경
-        const updatedcharacter = await tx.characters.update({
+        const updatedCharacterStat = await tx.characterStats.update({
           where: { characterId },
           data: {
-            characterStatHealth: { increment: item.ItemStat.health },
-            characterStatPower: { increment: item.ItemStat.power },
+            health: { increment: item.ItemStat.health },
+            power: { increment: item.ItemStat.power },
           },
-          include: { Equipment: true },
         });
-
-        return updatedcharacter;
       },
       {
         isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
       }
     );
 
+    const updatedCharacter = await usersPrisma.characters.findFirst({
+      where: { characterId },
+      include: { CharacterStat: true, Equipment: { orderBy: { itemCode: 'asc' } } },
+    });
+
     return res.status(200).json({
       data: {
         characterName: character.characterName,
-        characterStatHealth: character.characterStatHealth,
-        characterStatPower: character.characterStatPower,
+        health: character.CharacterStat.health,
+        power: character.CharacterStat.power,
         Equipment: await Promise.all(
           character.Equipment.map(
             async (item) =>
@@ -137,11 +140,11 @@ router.post('/users/auth/characters/:characterId/equipments', authMiddleware, au
         ),
       },
       updatedData: {
-        characterName: updatedcharacter.characterName,
-        characterStatHealth: updatedcharacter.characterStatHealth,
-        characterStatPower: updatedcharacter.characterStatPower,
+        characterName: updatedCharacter.characterName,
+        health: updatedCharacter.CharacterStat.health,
+        power: updatedCharacter.CharacterStat.power,
         Equipment: await Promise.all(
-          updatedcharacter.Equipment.map(
+          updatedCharacter.Equipment.map(
             async (item) =>
               await gameDataPrisma.items.findFirst({
                 where: { itemCode: item.itemCode },
@@ -181,8 +184,9 @@ router.delete(
       const character = await usersPrisma.characters.findFirst({
         where: { characterId },
         include: {
+          CharacterStat: true,
           Inventory: true,
-          Equipment: true,
+          Equipment: { orderBy: { itemCode: 'asc' } },
         },
       });
 
@@ -192,7 +196,7 @@ router.delete(
       }
 
       // 아이템 탈착
-      const updatedcharacter = await usersPrisma.$transaction(
+      await usersPrisma.$transaction(
         async (tx) => {
           // 장착 테이블에서 제거
           await tx.equipments.delete({
@@ -219,21 +223,23 @@ router.delete(
           }
 
           // 캐릭터 스텟 변경
-          const updatedcharacter = await tx.characters.update({
+          await tx.characterStats.update({
             where: { characterId },
             data: {
-              characterStatHealth: { decrement: item.ItemStat.health },
-              characterStatPower: { decrement: item.ItemStat.power },
+              health: { decrement: item.ItemStat.health },
+              power: { decrement: item.ItemStat.power },
             },
-            include: { Equipment: true },
           });
-
-          return updatedcharacter;
         },
         {
           isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
         }
       );
+
+      const updatedCharacter = await usersPrisma.characters.findFirst({
+        where: { characterId },
+        include: { CharacterStat: true, Equipment: { orderBy: { itemCode: 'asc' } } },
+      });
 
       return res.status(200).json({
         data: {
@@ -251,11 +257,11 @@ router.delete(
           ),
         },
         updatedData: {
-          characterName: updatedcharacter.characterName,
-          characterStatHealth: updatedcharacter.characterStatHealth,
-          characterStatPower: updatedcharacter.characterStatPower,
+          characterName: updatedCharacter.characterName,
+          health: updatedCharacter.CharacterStat.health,
+          power: updatedCharacter.CharacterStat.power,
           Equipment: await Promise.all(
-            updatedcharacter.Equipment.map(
+            updatedCharacter.Equipment.map(
               async (item) =>
                 await gameDataPrisma.items.findFirst({
                   where: { itemCode: item.itemCode },

@@ -6,8 +6,6 @@ import { Prisma } from '../../prisma/usersClient/index.js';
 
 const router = express.Router();
 
-const characterIdSchema = Joi.object({ characterId: Joi.string().required() });
-
 const itemSchema = Joi.object({
   itemCode: Joi.number().integer().required(),
   itemCount: Joi.number().integer().min(1).required(),

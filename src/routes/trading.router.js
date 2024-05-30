@@ -84,6 +84,13 @@ router.post('/users/auth/characters/:characterId/trading', authMiddleware, authC
 const itemsSchema = Joi.array().items(itemSchema);
 router.delete('/users/auth/characters/:characterId/trading', authMiddleware, authCharacter, async (req, res, next) => {
   try {
+    const { characterId } = req.character;
+
+    const character = await usersPrisma.characters.findFirst({
+      where: { characterId },
+      include: { Inventory: true },
+    });
+
     const validation = await itemsSchema.validateAsync(req.body);
     const items = validation;
     const existingItems = [];
@@ -113,13 +120,6 @@ router.delete('/users/auth/characters/:characterId/trading', authMiddleware, aut
       totalPrice += parseInt(item.itemPrice * itemCount * 0.6);
       soldItems.push(`${item.itemName}*${itemCount}`);
     }
-
-    const { characterId } = req.character;
-
-    const character = await usersPrisma.characters.findFirst({
-      where: { characterId },
-      include: { Inventory: true },
-    });
 
     const updatedcharacter = await usersPrisma.$transaction(
       async (tx) => {

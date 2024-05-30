@@ -124,7 +124,7 @@ router.get('/users/auth/characters/:characterId', authMiddleware, async (req, re
 
     const character = await usersPrisma.characters.findFirst({
       where: { characterId },
-      include: { CharacterStat },
+      include: { CharacterStat: true },
     });
 
     if (!character) {

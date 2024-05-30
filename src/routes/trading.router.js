@@ -1,6 +1,6 @@
 import express from 'express';
 import Joi from 'joi';
-import authMiddleware from '../middlewares/auth.middleware.js';
+import authMiddleware, { authCharacter } from '../middlewares/auth.middleware.js';
 import { usersPrisma, gameDataPrisma } from '../utils/prisma/index.js';
 import { Prisma } from '../../prisma/usersClient/index.js';
 
@@ -14,22 +14,9 @@ const itemSchema = Joi.object({
 });
 
 /** 아이템 구입 API * */
-router.post('/users/auth/characters/:characterId/trading', authMiddleware, async (req, res, next) => {
+router.post('/users/auth/characters/:characterId/trading', authMiddleware, authCharacter, async (req, res, next) => {
   try {
-    const { userId } = req.user;
-    let validation = await characterIdSchema.validateAsync(req.params);
-    const { characterId } = validation;
-
-    const character = await usersPrisma.characters.findFirst({
-      where: { characterId },
-      include: { Inventory: true },
-    });
-
-    if (!character || character.UserId !== +userId) {
-      return res.status(404).json({ errorMessage: '캐릭터 조회에 실패했습니다.' });
-    }
-
-    validation = await itemSchema.validateAsync(req.body);
+    const validation = await itemSchema.validateAsync(req.body);
     const { itemCode, itemCount } = validation;
 
     const item = await gameDataPrisma.items.findFirst({
@@ -39,6 +26,13 @@ router.post('/users/auth/characters/:characterId/trading', authMiddleware, async
     if (!item) {
       return res.status(404).json({ errorMessage: 'Item 조회에 실패했습니다.' });
     }
+
+    const { characterId } = req.character;
+
+    const character = await usersPrisma.characters.findFirst({
+      where: { characterId },
+      include: { Inventory: true },
+    });
 
     const totalPrice = item.itemPrice * itemCount;
     const balance = character.characterMoney - totalPrice;
@@ -52,12 +46,7 @@ router.post('/users/auth/characters/:characterId/trading', authMiddleware, async
     const updatedcharacter = await usersPrisma.$transaction(
       async (tx) => {
         const existingItem = character.Inventory.find((item) => item.itemCode === itemCode);
-        if (existingItem) {
-          await tx.inventories.update({
-            data: { itemCount: existingItem.itemCount + itemCount },
-            where: { inventoryId: existingItem.inventoryId },
-          });
-        } else {
+        if (!existingItem) {
           await tx.inventories.create({
             data: {
               CharacterId: characterId,
@@ -65,13 +54,16 @@ router.post('/users/auth/characters/:characterId/trading', authMiddleware, async
               itemCount,
             },
           });
+        } else {
+          await tx.inventories.update({
+            where: { inventoryId: existingItem.inventoryId },
+            data: { itemCount: { increment: itemCount } },
+          });
         }
 
         const updatedcharacter = await tx.characters.update({
-          data: {
-            characterMoney: balance,
-          },
           where: { characterId },
+          data: { characterMoney: balance },
         });
 
         return updatedcharacter;
@@ -91,28 +83,10 @@ router.post('/users/auth/characters/:characterId/trading', authMiddleware, async
 });
 
 /** 아이템 판매 API * */
-const itemsSchema = Joi.array().items(
-  Joi.object({
-    itemCode: Joi.number().integer().required(),
-    itemCount: Joi.number().integer().min(1).required(),
-  })
-);
-router.delete('/users/auth/characters/:characterId/trading', authMiddleware, async (req, res, next) => {
+const itemsSchema = Joi.array().items(itemSchema);
+router.delete('/users/auth/characters/:characterId/trading', authMiddleware, authCharacter, async (req, res, next) => {
   try {
-    const { userId } = req.user;
-    let validation = await characterIdSchema.validateAsync(req.params);
-    const { characterId } = validation;
-
-    const character = await usersPrisma.characters.findFirst({
-      where: { characterId },
-      include: { Inventory: true },
-    });
-
-    if (!character || character.UserId !== +userId) {
-      return res.status(404).json({ errorMessage: '캐릭터 조회에 실패했습니다.' });
-    }
-
-    validation = await itemsSchema.validateAsync(req.body);
+    const validation = await itemsSchema.validateAsync(req.body);
     const items = validation;
     const existingItems = [];
     const soldItems = [];
@@ -141,6 +115,13 @@ router.delete('/users/auth/characters/:characterId/trading', authMiddleware, asy
       totalPrice += parseInt(item.itemPrice * itemCount * 0.6);
       soldItems.push(`${item.itemName}*${itemCount}`);
     }
+
+    const { characterId } = req.character;
+
+    const character = await usersPrisma.characters.findFirst({
+      where: { characterId },
+      include: { Inventory: true },
+    });
 
     const updatedcharacter = await usersPrisma.$transaction(
       async (tx) => {

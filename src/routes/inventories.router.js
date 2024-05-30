@@ -1,18 +1,14 @@
 import express from 'express';
-import Joi from 'joi';
 import authMiddleware from '../middlewares/auth.middleware.js';
+import { authCharacter } from '../middlewares/auth.middleware.js';
 import { usersPrisma, gameDataPrisma } from '../utils/prisma/index.js';
 
 const router = express.Router();
 
-const characterIdSchema = Joi.object({ characterId: Joi.string().required() });
-
 /** 캐릭터가 보유한 인벤토리 내 아이템 목록 조회 API * */
-router.get('/users/auth/characters/:characterId/inventory', authMiddleware, async (req, res, next) => {
+router.get('/users/auth/characters/:characterId/inventory', authMiddleware, authCharacter, async (req, res, next) => {
   try {
-    const { userId } = req.user;
-    const validation = await characterIdSchema.validateAsync(req.params);
-    const { characterId } = validation;
+    const { characterId } = req.character;
 
     const character = await usersPrisma.characters.findFirst({
       where: { characterId },
@@ -22,10 +18,6 @@ router.get('/users/auth/characters/:characterId/inventory', authMiddleware, asyn
         },
       },
     });
-
-    if (!character || character.UserId !== +userId) {
-      return res.status(404).json({ errorMessage: '캐릭터 조회에 실패했습니다.' });
-    }
 
     const data = [];
     for (const { itemCode, itemCount } of character.Inventory) {
